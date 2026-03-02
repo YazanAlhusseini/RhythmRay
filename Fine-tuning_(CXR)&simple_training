@@ -1,0 +1,72 @@
+import os
+import pandas as pd
+from datasets import Dataset
+from transformers import TrainingArguments, Trainer, DataCollatorForLanguageModeling
+
+print("🚀 Starting CXR Fine-Tuning Setup...")
+
+
+if os.path.exists("train_cxr.csv"):
+    df_cxr = pd.read_csv("train_cxr.csv")
+    
+
+    def create_cxr_prompt(row):
+
+        label = row.get('Finding Labels', 'Unknown')
+        return f"### Instruction:\nAnalyze the Chest X-Ray file: {row['Full_Path']}\n\n### Response:\nDiagnosis: {label}<eos>"
+
+
+    df_cxr['text'] = df_cxr.apply(create_cxr_prompt, axis=1)
+    
+
+    dataset_cxr = Dataset.from_pandas(df_cxr[['text']].head(200))
+
+
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right" 
+
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512)
+
+    print("⏳ Tokenizing CXR dataset...")
+    tokenized_cxr = dataset_cxr.map(tokenize_function, batched=True)
+    print(f"📚 CXR Data Ready: {len(tokenized_cxr)} samples")
+
+
+    cxr_training_args = TrainingArguments(
+        output_dir="./medgemma_cxr_adapters", 
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        learning_rate=2e-4,
+        logging_steps=5,
+        save_steps=10,
+        max_steps=30,             
+        optim="paged_adamw_32bit",
+        fp16=True,                
+        warmup_steps=5,           
+        report_to="none"          
+    )
+
+
+    print("\n🏋️ Initializing CXR Trainer...")
+    cxr_trainer = Trainer(
+        model=model,
+        train_dataset=tokenized_cxr,
+        args=cxr_training_args,
+        data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
+    )
+
+    print("\n🔥 CXR TRAINING STARTED! (Monitor the Loss value)...")
+    cxr_trainer.train()
+    
+
+    print("\n💾 Saving CXR Model...")
+    new_cxr_model_name = "medgemma-2b-cxr-finetuned"
+    cxr_trainer.model.save_pretrained(new_cxr_model_name)
+    tokenizer.save_pretrained(new_cxr_model_name)
+    
+    print(f"✅ CXR Adapters Saved Successfully to: '{new_cxr_model_name}'")
+    print("🎉 Congratulations! You now have TWO medical brains (ECG & CXR).")
+
+else:
+    print("❌ Error: 'train_cxr.csv' not found. Ensure Phase 1 ran correctly.")
