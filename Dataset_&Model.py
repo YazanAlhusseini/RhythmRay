@@ -4,7 +4,6 @@
 !pip install -q wfdb
 !pip install -q kaggle openpyxl huggingface_hub
 
-
 import os
 import glob
 import ast
@@ -16,11 +15,10 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from huggingface_hub import login
 
 
-HF_TOKEN = "Hugging_Face_Token"
+HF_TOKEN = "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"
 login(token=HF_TOKEN)
 
-print("🚀 Starting RhythmRay Pipeline...")
-
+print("🚀 Starting RhythmRay Pipeline (Colab Pro - Full Data Edition)...")
 
 from google.colab import files
 if not os.path.exists('kaggle.json'):
@@ -30,7 +28,6 @@ if not os.path.exists('kaggle.json'):
     !cp kaggle.json ~/.kaggle/
     !chmod 600 ~/.kaggle/kaggle.json
 
-
 print("\n[1/3] Checking Data Status...")
 
 if os.path.exists("train_cxr.csv") and os.path.exists("train_ecg.csv"):
@@ -39,17 +36,19 @@ if os.path.exists("train_cxr.csv") and os.path.exists("train_ecg.csv"):
     df_ecg = pd.read_csv("train_ecg.csv")
     print(f"   📊 Loaded: {len(df_cxr)} X-Rays, {len(df_ecg)} ECGs.")
 else:
-    print("   ⚙️ Processing Data from Scratch...")
+    print("   ⚙️ Processing Full Data from Scratch (This will take time due to file sizes)...")
 
 
-    if not os.path.exists("./nih_sample"):
-        !kaggle datasets download -d nih-chest-xrays/sample --unzip -p ./nih_sample
+    if not os.path.exists("./nih_full"):
+        print("   📥 Downloading Full NIH CXR Dataset (~42GB)...")
 
+        !kaggle datasets download -d nih-chest-xrays/data --unzip -p ./nih_full
 
-    all_images = glob.glob("./nih_sample/**/*.png", recursive=True)
+    all_images = glob.glob("./nih_full/**/*.png", recursive=True)
     path_dict = {os.path.basename(x): x for x in all_images}
 
-    csv_files = glob.glob("./nih_sample/**/sample_labels.csv", recursive=True)
+
+    csv_files = glob.glob("./nih_full/**/Data_Entry_2017.csv", recursive=True)
     if csv_files:
         df_cxr = pd.read_csv(csv_files[0])
         df_cxr['Full_Path'] = df_cxr['Image Index'].map(path_dict)
@@ -58,9 +57,11 @@ else:
         if not df_cxr.empty:
             train_cxr, _ = train_test_split(df_cxr, test_size=0.2, random_state=42)
             train_cxr.to_csv("train_cxr.csv", index=False)
-            print(f"   ✅ CXR Processed: {len(df_cxr)} images.")
+            print(f"   ✅ Full CXR Processed: {len(df_cxr)} images.")
+
 
     if not os.path.exists("./ptb_xl"):
+        print("   📥 Downloading Full PTB-XL ECG Dataset...")
         !kaggle datasets download -d bjoernjostein/ptbxlphysionet --unzip -p ./ptb_xl
 
     db_files = glob.glob("./ptb_xl/**/ptbxl_database.csv", recursive=True)
@@ -84,8 +85,7 @@ else:
             if not df_ptb.empty:
                 train_ecg, _ = train_test_split(df_ptb, test_size=0.2, random_state=42)
                 train_ecg.to_csv("train_ecg.csv")
-                print(f"   ✅ ECG Processed: {len(df_ptb)} records.")
-
+                print(f"   ✅ Full ECG Processed: {len(df_ptb)} records.")
 
 print("\n[3/3] Loading AI Model (MedGemma-2B)...")
 
@@ -106,7 +106,6 @@ try:
         device_map="auto",
         token=HF_TOKEN
     )
-
 
     model.gradient_checkpointing_enable()
     model = prepare_model_for_kbit_training(model)
