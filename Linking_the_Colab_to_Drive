@@ -1,0 +1,10 @@
+from google.colab import drive
+import os
+
+print("🔄 Mounting Google Drive for direct saving...")
+drive.mount('/content/drive')
+
+
+drive_path = '/content/drive/MyDrive/RhythmRay_Models'
+os.makedirs(drive_path, exist_ok=True)
+print(f"✅ Drive ready! Models will be saved directly to: {drive_path}")
