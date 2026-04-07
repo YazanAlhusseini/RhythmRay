@@ -1,0 +1,72 @@
+import os
+import pandas as pd
+from datasets import Dataset
+from transformers import TrainingArguments, Trainer, DataCollatorForLanguageModeling
+
+print("🚀 Starting INTENSIVE Training (Direct-to-Drive Mode)...")
+
+if os.path.exists("train_ecg.csv"):
+    df_ecg = pd.read_csv("train_ecg.csv")
+
+    def create_prompt(row):
+        return f"### Instruction:\nAnalyze the ECG file: {row['Full_Path']}\n\n### Response:\nDiagnosis: {row['label']}<eos>"
+
+    df_ecg['text'] = df_ecg.apply(create_prompt, axis=1)
+    
+    dataset = Dataset.from_pandas(df_ecg[['text']])
+    dataset = dataset.shuffle(seed=42)
+
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512)
+
+    print("⏳ Tokenizing FULL dataset...")
+    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+
+ 
+    checkpoint_dir = "/content/drive/MyDrive/RhythmRay_Models/ECG_Checkpoints"
+    
+    training_args = TrainingArguments(
+        output_dir=checkpoint_dir,      
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=8,
+        learning_rate=2e-4,
+        logging_steps=100,
+        save_strategy="steps",          
+        save_steps=400,                 
+        save_total_limit=2,             
+        num_train_epochs=2,
+        optim="paged_adamw_32bit",
+        fp16=True,
+        warmup_ratio=0.05,
+        report_to="none"
+    )
+
+    trainer = Trainer(
+        model=model,
+        train_dataset=tokenized_datasets,
+        args=training_args,
+        data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
+    )
+
+    print("\n🔥 INTENSIVE TRAINING STARTED! (Directly writing to Google Drive)...")
+    
+   
+    if os.path.isdir(checkpoint_dir) and len(os.listdir(checkpoint_dir)) > 0:
+        print("🔄 Resuming from Drive checkpoint...")
+        trainer.train(resume_from_checkpoint=True)
+    else:
+        trainer.train()
+
+    print("\n💾 Saving Final Model to Drive...")
+    final_model_path = "/content/drive/MyDrive/RhythmRay_Models/medgemma-2b-ecg-full-finetuned"
+    trainer.model.save_pretrained(final_model_path)
+    tokenizer.save_pretrained(final_model_path)
+
+    print(f"✅ Full Adapters Saved Successfully to DRIVE: '{final_model_path}'")
+    print("🎉 Congratulations! Your model is now immune to Colab disconnections.")
+
+else:
+    print("❌ Error: 'train_ecg.csv' not found. Please run Data Download Phase first.")
