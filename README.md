@@ -13,6 +13,7 @@ RhythmRay AI is a multi-modal medical diagnostic system that leverages a **Modul
 The system classifies 13 pulmonary diseases and 5 core cardiac arrhythmias:
 - **Radiology (CXR):** Atelectasis, Cardiomegaly, Effusion, Infiltration, Mass, Nodule, Pneumothorax, etc.
 - **Cardiology (ECG):** Normal Sinus Rhythm (NORM), CLBBB, CRBBB, PACE, and PVC.
+https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/ECG_EffNetB0_V4.pth
 
 ## 📁 Repository Structure
 ```text
