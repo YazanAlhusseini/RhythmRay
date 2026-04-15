@@ -35,7 +35,7 @@ Special thanks to **Umm Al-Qura University** and the **College of Computer and I
 
 ---
 *© 2026 RhythmRay AI Project. All Rights Reserved.*
-
+```text
 ⚙️ Installation & Setup
 Clone the repository:
 
