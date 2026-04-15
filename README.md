@@ -39,12 +39,11 @@ Special thanks to **Umm Al-Qura University** and the **College of Computer and I
 ⚙️ Installation & Setup
 Clone the repository:
 
-Bash
 git clone [https://github.com/YazanAlhusseini/RhythmRay.git](https://github.com/YazanAlhusseini/RhythmRay.git)
-cd RhythmRay-AI
+cd RhythmRay
 Install dependencies:
 
-Bash
+
 pip install -r requirements.txt
 
 Configuration:
@@ -55,8 +54,10 @@ Provide your HuggingFace Token in the sidebar when prompted to enable the MedGem
 
 Run the Application:
 
-Bash
+
 streamlit run app.py
+
+
 🧠 Model Optimization Details
 Vision: ResNet50 (Transfer Learning) & EfficientNet-B0.
 
