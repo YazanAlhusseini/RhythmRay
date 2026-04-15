@@ -40,7 +40,7 @@ Install dependencies:
 Bash
 pip install -r requirements.txt
 3. **Download Model Weights:**
-   * [Download CXR Model (270MB)](sha256:6b54a7485005ad34e21e0b9e7d1c334d570abd666097013b960a553fc0ab2a91)
+   * [Download CXR Model (270MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/CXR_ResNet50_v2.pth)
    * [Download ECG Model (16MB)](رابط_ملف_تخطيط_القلب_الذي_نسخته)
    * Create a folder named `models` in the root directory and place these files inside it.
 
