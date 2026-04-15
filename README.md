@@ -33,7 +33,7 @@ Special thanks to **Umm Al-Qura University** and the **College of Computer and I
 Clone the repository:
 
 Bash
-git clone [https://github.com/YourUsername/RhythmRay-AI.git](https://github.com/YourUsername/RhythmRay-AI.git)
+git clone [https://github.com/YazanAlhusseini/RhythmRay.git](https://github.com/YazanAlhusseini/RhythmRay.git)
 cd RhythmRay-AI
 Install dependencies:
 
