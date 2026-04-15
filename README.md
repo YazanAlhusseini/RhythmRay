@@ -28,3 +28,52 @@ Special thanks to **Umm Al-Qura University** and the **College of Computer and I
 
 ---
 *© 2026 RhythmRay AI Project. All Rights Reserved.*
+
+⚙️ Installation & Setup
+Clone the repository:
+
+Bash
+git clone [https://github.com/YourUsername/RhythmRay-AI.git](https://github.com/YourUsername/RhythmRay-AI.git)
+cd RhythmRay-AI
+Install dependencies:
+
+Bash
+pip install -r requirements.txt
+Download Model Weights:
+
+Download the specialized weights (CXR_ResNet50_v2.pth and ECG_EffNetB0_V4.pth) from the [Releases] section of this repository.
+
+Place both files inside the /models/ directory.
+
+Configuration:
+
+Open app.py and ensure the MODEL_DIR path points to your models/ folder.
+
+Provide your HuggingFace Token in the sidebar when prompted to enable the MedGemma LLM.
+
+Run the Application:
+
+Bash
+streamlit run app.py
+🧠 Model Optimization Details
+Vision: ResNet50 (Transfer Learning) & EfficientNet-B0.
+
+LLM: MedGemma-2B (Google Gemma-2B-it base).
+
+Fine-tuning: LoRA (Low-Rank Adaptation).
+
+Quantization: BitsAndBytes 4-bit NormalFloat (NF4).
+
+👨‍💻 Team (Jamoum University College - CS Department)
+Yazan Alhusseini - ECG Expert & System Integration
+
+Raad Aladli - LLM Fine-tuning & Web Backend
+
+Osama Alharbi - ECG Preprocessing & Frontend Design
+
+Thamer Alzahrani - CXR Expert & Documentation
+
+Khaled Alsolami - CXR Preprocessing & Testing
+
+📜 Disclaimer
+RhythmRay AI is a research prototype designed for clinical triage support. It is not intended to replace final clinical judgment by a certified healthcare professional.
