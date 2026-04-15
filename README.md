@@ -39,9 +39,10 @@ Install dependencies:
 
 Bash
 pip install -r requirements.txt
-Download Model Weights:
-
-Download the specialized weights (CXR_ResNet50_v2.pth and ECG_EffNetB0_V4.pth) from the [Releases] section of this repository.
+3. **Download Model Weights:**
+   * [Download CXR Model (270MB)](رابط_ملف_الأشعة_الذي_نسخته)
+   * [Download ECG Model (16MB)](رابط_ملف_تخطيط_القلب_الذي_نسخته)
+   * Create a folder named `models` in the root directory and place these files inside it.
 
 Place both files inside the /models/ directory.
 
