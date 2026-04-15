@@ -1,268 +1,151 @@
-print("📥 Preparing...")
-!pip install -q pyngrok streamlit
-
-import os
-from pyngrok import ngrok
-import time
-
-print("🧹 Cleaning...")
-!pkill -f streamlit
-!pkill -f ngrok
-
-
-
-NGROK_AUTH_TOKEN = "Enter_Your_Token"
-
-
-!ngrok config add-authtoken $NGROK_AUTH_TOKEN
-
-app_code = """
 import streamlit as st
-import time
-from datetime import datetime
+import torch
+import torch.nn as nn
+from torchvision import models as tv_models, transforms
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from PIL import Image
+import tempfile
+import os
 
-st.set_page_config(
-    page_title="RhythmRay AI",
-    page_icon="🫀",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# --- Page Configuration ---
+st.set_page_config(page_title="RhythmRay AI", page_icon="🩺", layout="wide")
 
-st.markdown(\"\"\"
-    <style>
-    [data-testid="stDecoration"], .stDeployButton { display: none; }
-
-    [data-testid="stHeader"] {
-        background-color: #0E1117 !important;
-        border-bottom: none !important;
-    }
-
-    [data-testid="collapsedControl"] {
-        color: white !important;
-        display: block !important;
-    }
-
-    .block-container { padding-top: 2rem !important; }
-
-    input[type="text"], input[type="password"] {
-        background-color: #262730 !important;
-        color: white !important;
-        border: 1px solid #444 !important;
-        border-radius: 5px !important;
-    }
-
+# --- Custom UI Styling (CSS) ---
+st.markdown("""
+<style>
+    [data-testid="stDecoration"], .stDeployButton { display:none; }
     .stButton>button {
-        background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
-        color: #004d40;
-        border: none;
-        font-weight: bold;
-        height: 45px;
-        width: 100%;
+        background: linear-gradient(90deg,#00C9FF,#92FE9D);
+        color:#004d40; border:none; font-weight:bold;
+        height:45px; width:100%; border-radius:10px;
     }
-
-    .team-list {
-        font-size: 13px;
-        line-height: 1.6;
-        color: #ffffff !important;
-        background-color: #1E1E1E !important;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #444;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    .result-card {
+        background:#1e1e1e; border-radius:12px; padding:20px;
+        margin:10px 0; border-left:5px solid #00C9FF; color:white;
     }
+</style>
+""", unsafe_allow_html=True)
 
-    .diagnosis-card {
-        background-color: #1e1e1e;
-        color: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        position: relative;
-        overflow: hidden;
-    }
-    .diagnosis-card::before {
-        content: ""; position: absolute; top: 0; left: 0; width: 6px; height: 100%;
-    }
-    .cxr-border::before { background-color: #00C9FF; }
-    .ecg-border::before { background-color: #FF4B4B; }
+# --- Configuration and Paths ---
+# Local paths for public repository compatibility
+MODEL_DIR = "./models"
+CXR_PATH = os.path.join(MODEL_DIR, "CXR_ResNet50_v2.pth")
+ECG_PATH = os.path.join(MODEL_DIR, "ECG_EffNetB0_V4.pth")
+GEMMA_ID = "google/gemma-2b-it"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    .diag-label { color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-    .diag-title { color: white; font-size: 32px; font-weight: 700; margin: 5px 0; }
+CXR_LABELS = [
+    "No Finding","Infiltration","Atelectasis","Effusion",
+    "Nodule","Mass","Pneumothorax","Consolidation",
+    "Pleural_Thickening","Cardiomegaly","Emphysema","Fibrosis","Edema"
+]
 
-    .confidence-badge {
-        display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: bold;
-    }
-    .badge-blue { background: rgba(0, 201, 255, 0.15); color: #00C9FF; border: 1px solid rgba(0, 201, 255, 0.3); }
-    .badge-red { background: rgba(255, 75, 75, 0.15); color: #FF4B4B; border: 1px solid rgba(255, 75, 75, 0.3); }
+# --- Model Loading Functions (With Caching) ---
 
-    .report-card {
-        background-color: #13151A;
-        border: 1px solid #333;
-        border-radius: 10px;
-        padding: 25px;
-        color: #ddd;
-    }
-    .report-header {
-        font-size: 16px; font-weight: bold; color: #fff; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px;
-    }
-    .section-title { color: #00C9FF; font-weight: bold; font-size: 14px; margin-bottom: 5px; }
-    .section-text { color: #ccc; font-size: 14px; line-height: 1.6; }
-    </style>
-\"\"\", unsafe_allow_html=True)
+@st.cache_resource
+def load_cxr_model():
+    """Initializes ResNet50 for Chest X-Ray classification."""
+    model = tv_models.resnet50(weights=None)
+    model.fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(model.fc.in_features, 13))
+    if os.path.exists(CXR_PATH):
+        ckpt = torch.load(CXR_PATH, map_location=device)
+        model.load_state_dict(ckpt["model_state_dict"])
+    return model.to(device).eval()
 
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
-if 'user_name' not in st.session_state: st.session_state['user_name'] = ""
-if 'history_log' not in st.session_state: st.session_state['history_log'] = []
+@st.cache_resource
+def load_ecg_model():
+    """Initializes EfficientNet-B0 for ECG arrhythmia detection."""
+    base = tv_models.efficientnet_b0(weights=None)
+    in_f = base.classifier[1].in_features
+    base.classifier = nn.Sequential(
+        nn.Dropout(0.4), nn.Linear(in_f, 256),
+        nn.ReLU(), nn.Dropout(0.2), nn.Linear(256, 5) # 5 cardiac classes
+    )
+    if os.path.exists(ECG_PATH):
+        ckpt = torch.load(ECG_PATH, map_location=device)
+        base.load_state_dict(ckpt["model_state_dict"])
+    return base.to(device).eval()
 
-def login_page():
-    c1, col_login, c3 = st.columns([1, 1.2, 1])
-    with col_login:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.title("🔐 Secure Login")
-        st.caption("RhythmRay Diagnostic System")
-        with st.form("login"):
-            u = st.text_input("Username")
-            p = st.text_input("Password", type="password")
-            if st.form_submit_button("Access System"):
-                if u:
-                    st.session_state['logged_in'] = True
-                    st.session_state['user_name'] = u
-                    st.rerun()
+@st.cache_resource
+def load_gemma_llm(hf_token):
+    """Loads MedGemma-2B with 4-bit quantization via BitsAndBytes."""
+    bnb = BitsAndBytesConfig(
+        load_in_4bit=True, bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True
+    )
+    tokenizer = AutoTokenizer.from_pretrained(GEMMA_ID, token=hf_token)
+    model = AutoModelForCausalLM.from_pretrained(
+        GEMMA_ID, quantization_config=bnb, device_map="auto", token=hf_token
+    )
+    return tokenizer, model
 
-def main_app():
-    with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/3004/3004458.png", width=80)
-        st.title(f"Dr. {st.session_state['user_name']}")
-        st.caption("🟢 Online | Secure Session")
-        st.markdown("---")
+# --- Inference Logic ---
 
-        st.subheader("⚙️ System Status")
-        st.info("Model: MedGemma-2B (LoRA)")
-        st.success("Connection: Stable")
+def predict(image_path, mode):
+    """Handles image preprocessing and neural network forward pass."""
+    transform = transforms.Compose([
+        transforms.Resize((224,224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225])
+    ])
+    img = Image.open(image_path).convert("RGB")
+    tensor = transform(img).unsqueeze(0).to(device)
+    
+    # Select expert model based on modality
+    model = load_cxr_model() if mode == "CXR" else load_ecg_model()
+    with torch.no_grad():
+        outputs = model(tensor)
+        probs = torch.softmax(outputs, dim=1)[0]
+    
+    idx = probs.argmax().item()
+    label = CXR_LABELS[idx] if mode == "CXR" else ["CLBBB","CRBBB","NORM","PACE","PVC"][idx]
+    return label, round(probs[idx].item()*100, 2)
 
-        st.markdown("---")
-        st.markdown(\"\"\"
-        <div style="padding-bottom: 10px;">
-            <p style="font-size: 14px; color: #888; margin-bottom: 5px;">Developed by:</p>
-            <div class="team-list">
-                <b>• Yazan (Lead Developer)</b><br>
-                • Raad<br>• Osama<br>• Khalid<br>• Thamer
-            </div>
-            <p style="font-size: 13px; margin-top: 10px; text-align: center; color: #00C9FF;">Umm Al-Qura University</p>
-        </div>
-        \"\"\", unsafe_allow_html=True)
+# --- User Interface (UI) Layout ---
 
-        if st.button("Logout"):
-            st.session_state['logged_in'] = False
-            st.rerun()
+with st.sidebar:
+    st.title("⚙️ Control Panel")
+    hf_token = st.text_input("HuggingFace Token", type="password", help="Required to access MedGemma LLM weights")
+    st.divider()
+    scan_type = st.radio("Select Diagnostic Modality", ["CXR - Chest X-Ray", "ECG - Electrocardiogram"])
+    st.info("Ensure .pth files are located in the /models directory for local inference.")
 
-    st.title("🫀 RhythmRay AI Dashboard")
-    t1, t2, t3 = st.tabs(["🫁 Chest X-Ray", "❤️ ECG Analysis", "📝 History"])
+st.title("🩺 RhythmRay AI: System of Experts")
+st.caption("Advanced Multi-Modal Diagnostic Platform for Radiology & Cardiology")
 
-    with t1:
-        col_up, col_res = st.columns([1, 1.2])
-        with col_up:
-            img = st.file_uploader("Upload Chest X-Ray", key="cxr")
-            if img:
-                st.image(img, use_container_width=True)
-            analyze_btn = st.button("Analyze Scan ⚡", key="b1")
+col1, col2 = st.columns([1, 1])
 
-        with col_res:
-            if img and analyze_btn:
-                with st.spinner("Processing MedGemma-2B (LoRA)..."):
-                    time.sleep(2)
-                    st.session_state['history_log'].insert(0, {"t":"CXR", "r":"Pneumonia", "time":datetime.now().strftime("%H:%M")})
+with col1:
+    st.subheader("📤 Data Ingestion")
+    uploaded_file = st.file_uploader("Upload Medical Scan (CXR or ECG)", type=["jpg", "png", "jpeg"])
+    if uploaded_file:
+        st.image(uploaded_file, caption="Input Scan Preview", use_container_width=True)
 
-                    diagnosis_html = \"\"\"
-<div class="diagnosis-card cxr-border">
-    <div class="diag-label">Primary Diagnosis</div>
-    <div class="diag-title">Pneumonia</div>
-    <span class="confidence-badge badge-blue">⚡ 94.2% Confidence</span>
-</div>
-\"\"\"
-                    st.markdown(diagnosis_html, unsafe_allow_html=True)
-
-                    report_html = \"\"\"
-<div class="report-card">
-    <div class="report-header">📝 AI Generated Clinical Report</div>
-    <div style="margin-bottom: 15px;">
-        <div class="section-title">FINDINGS</div>
-        <div class="section-text">
-            Frontal chest radiograph demonstrates focal opacity in the right lower lobe consistent with airspace consolidation. No significant pleural effusion or pneumothorax seen. Cardiac silhouette is within normal limits.
-        </div>
-    </div>
-    <div>
-        <div class="section-title">IMPRESSION</div>
-        <div class="section-text">
-            Right lower lobe consolidation suggestive of bacterial pneumonia. Clinical correlation recommended.
-        </div>
-    </div>
-</div>
-\"\"\"
-                    st.markdown(report_html, unsafe_allow_html=True)
-
-    with t2:
-        col_up2, col_res2 = st.columns([1, 1.2])
-        with col_up2:
-            ecg = st.file_uploader("Upload ECG Signal", key="ecg")
-            if ecg: st.info(f"File: {ecg.name}")
-            analyze_ecg = st.button("Analyze Rhythm ⚡", key="b2")
-
-        with col_res2:
-            if ecg and analyze_ecg:
-                with st.spinner("Analyzing Rhythm Patterns..."):
-                    time.sleep(2)
-                    st.session_state['history_log'].insert(0, {"t":"ECG", "r":"AFIB", "time":datetime.now().strftime("%H:%M")})
-
-                    ecg_diag_html = \"\"\"
-<div class="diagnosis-card ecg-border">
-    <div class="diag-label">Rhythm Analysis</div>
-    <div class="diag-title" style="color:#FF4B4B;">Atrial Fibrillation</div>
-    <span class="confidence-badge badge-red">⚠️ Critical Alert (98%)</span>
-</div>
-\"\"\"
-                    st.markdown(ecg_diag_html, unsafe_allow_html=True)
-
-                    ecg_report_html = \"\"\"
-<div class="report-card">
-    <div class="report-header">❤️ ECG Analysis Report</div>
-    <div style="margin-bottom: 15px;">
-        <div class="section-title">WAVEFORM ANALYSIS</div>
-        <div class="section-text">
-            Irregularly irregular ventricular rhythm detected. Absence of distinct P-waves preceding QRS complexes. Rapid Ventricular Response (RVR) noted.
-        </div>
-    </div>
-    <div>
-        <div class="section-title">CLINICAL IMPRESSION</div>
-        <div class="section-text">
-            Atrial Fibrillation (AFIB). Immediate cardiology consultation advised to manage rate control and anticoagulation.
-        </div>
-    </div>
-</div>
-\"\"\"
-                    st.markdown(ecg_report_html, unsafe_allow_html=True)
-
-    with t3:
-        if not st.session_state['history_log']: st.info("No records available.")
-        for i in st.session_state['history_log']:
-            border_color = "#00C9FF" if i['t']=="CXR" else "#FF4B4B"
-            st.markdown(f"<div style='border-left:4px solid {border_color}; padding:15px; background:#262730; margin-bottom:10px; border-radius:4px;'><b>{i['r']}</b> <span style='float:right; color:#888; font-size:12px;'>{i['time']}</span></div>", unsafe_allow_html=True)
-
-if st.session_state['logged_in']:
-    main_app()
-else:
-    login_page()
-"""
-
-with open("app.py", "w", encoding='utf-8') as f:
-    f.write(app_code)
-
-print("🚀 Closing The System...")
-try:
-    public_url = ngrok.connect(8501).public_url
-    print(f"\n🔗 Public URL: {public_url}\n")
-
-    !python -m streamlit run app.py >/dev/null
+with col2:
+    st.subheader("🧠 Cognitive Analysis")
+    if uploaded_file and hf_token:
+        if st.button("Generate Diagnostic Report"):
+            with st.spinner("Analyzing via Vision Experts..."):
+                # Save uploaded file to a temporary location for processing
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = tmp.name
+                
+                mode = "CXR" if "CXR" in scan_type else "ECG"
+                diag, conf = predict(tmp_path, mode)
+                
+                # Display Results
+                st.markdown(f"""
+                <div class="result-card">
+                    <h4>Primary Diagnosis: {diag}</h4>
+                    <p>AI Confidence Score: <b>{conf}%</b></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Clean up temporary file
+                os.unlink(tmp_path)
+    elif uploaded_file and not hf_token:
+        st.warning("HuggingFace Token is required in the sidebar to activate the Cognitive Layer.")
 except Exception as e:
     print(f"Error: {e}")
