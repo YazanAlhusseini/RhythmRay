@@ -13,7 +13,13 @@ RhythmRay AI is a multi-modal medical diagnostic system that leverages a **Modul
 The system classifies 13 pulmonary diseases and 5 core cardiac arrhythmias:
 - **Radiology (CXR):** Atelectasis, Cardiomegaly, Effusion, Infiltration, Mass, Nodule, Pneumothorax, etc.
 - **Cardiology (ECG):** Normal Sinus Rhythm (NORM), CLBBB, CRBBB, PACE, and PVC.
-https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/ECG_EffNetB0_V4.pth
+
+
+ **Download Model Weights:**
+   * [Download CXR Model (270MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/CXR_ResNet50_v2.pth)
+   * [Download ECG Model (16MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/ECG_EffNetB0_V4.pth)
+   * Create a folder named `models` in the root directory and place these files inside it.
+
 
 ## 📁 Repository Structure
 ```text
@@ -40,12 +46,6 @@ Install dependencies:
 
 Bash
 pip install -r requirements.txt
-3. **Download Model Weights:**
-   * [Download CXR Model (270MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/CXR_ResNet50_v2.pth)
-   * [Download ECG Model (16MB)](رابط_ملف_تخطيط_القلب_الذي_نسخته)
-   * Create a folder named `models` in the root directory and place these files inside it.
-
-Place both files inside the /models/ directory.
 
 Configuration:
 
