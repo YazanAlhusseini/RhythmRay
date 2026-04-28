@@ -1,3 +1,4 @@
+%%writefile app.py
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -10,24 +11,38 @@ import os
 # --- Page Configuration ---
 st.set_page_config(page_title="RhythmRay AI", page_icon="🩺", layout="wide")
 
-# --- Custom UI Styling (CSS) ---
+# --- Custom Styling (CSS) ---
 st.markdown("""
 <style>
     [data-testid="stDecoration"], .stDeployButton { display:none; }
+
+    /* Analyze Image Button Style */
     .stButton>button {
-        background: linear-gradient(90deg,#00C9FF,#92FE9D);
-        color:#004d40; border:none; font-weight:bold;
-        height:45px; width:100%; border-radius:10px;
+        background: linear-gradient(90deg, #00C9FF, #92FE9D);
+        color: #004d40;
+        border: none;
+        font-weight: bold;
+        border-radius: 8px;
+        padding: 10px 20px;
     }
-    .result-card {
-        background:#1e1e1e; border-radius:12px; padding:20px;
-        margin:10px 0; border-left:5px solid #00C9FF; color:white;
+
+    /* Main Diagnosis Card */
+    .diag-box {
+        background-color: #1e1e1e;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-left: 5px solid #00C9FF;
+        color: white;
     }
+    .diag-box h2 { margin-top: 0; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Configuration and Paths ---
-# Local paths for public repository compatibility
+# --- Configuration & Security ---
+# 🔴 ضع التوكن السري الخاص بك هنا بين علامتي التنصيص 🔴
+HF_TOKEN = "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"
+
 MODEL_DIR = "./models"
 CXR_PATH = os.path.join(MODEL_DIR, "CXR_ResNet50_v2.pth")
 ECG_PATH = os.path.join(MODEL_DIR, "ECG_EffNetB0_V4.pth")
@@ -40,11 +55,9 @@ CXR_LABELS = [
     "Pleural_Thickening","Cardiomegaly","Emphysema","Fibrosis","Edema"
 ]
 
-# --- Model Loading Functions (With Caching) ---
-
+# --- Model Loading Functions ---
 @st.cache_resource
 def load_cxr_model():
-    """Initializes ResNet50 for Chest X-Ray classification."""
     model = tv_models.resnet50(weights=None)
     model.fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(model.fc.in_features, 13))
     if os.path.exists(CXR_PATH):
@@ -54,12 +67,11 @@ def load_cxr_model():
 
 @st.cache_resource
 def load_ecg_model():
-    """Initializes EfficientNet-B0 for ECG arrhythmia detection."""
     base = tv_models.efficientnet_b0(weights=None)
     in_f = base.classifier[1].in_features
     base.classifier = nn.Sequential(
         nn.Dropout(0.4), nn.Linear(in_f, 256),
-        nn.ReLU(), nn.Dropout(0.2), nn.Linear(256, 5) # 5 cardiac classes
+        nn.ReLU(), nn.Dropout(0.2), nn.Linear(256, 5)
     )
     if os.path.exists(ECG_PATH):
         ckpt = torch.load(ECG_PATH, map_location=device)
@@ -67,23 +79,21 @@ def load_ecg_model():
     return base.to(device).eval()
 
 @st.cache_resource
-def load_gemma_llm(hf_token):
-    """Loads MedGemma-2B with 4-bit quantization via BitsAndBytes."""
+def load_gemma_llm():
+    # استخدام التوكن المدمج مباشرة بدون طلبه من الواجهة
     bnb = BitsAndBytesConfig(
         load_in_4bit=True, bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_use_double_quant=True
     )
-    tokenizer = AutoTokenizer.from_pretrained(GEMMA_ID, token=hf_token)
+    tokenizer = AutoTokenizer.from_pretrained(GEMMA_ID, token=HF_TOKEN)
     model = AutoModelForCausalLM.from_pretrained(
-        GEMMA_ID, quantization_config=bnb, device_map="auto", token=hf_token
+        GEMMA_ID, quantization_config=bnb, device_map="auto", token=HF_TOKEN
     )
     return tokenizer, model
 
 # --- Inference Logic ---
-
-def predict(image_path, mode):
-    """Handles image preprocessing and neural network forward pass."""
+def predict_vision(image_path, mode):
     transform = transforms.Compose([
         transforms.Resize((224,224)),
         transforms.ToTensor(),
@@ -91,61 +101,96 @@ def predict(image_path, mode):
     ])
     img = Image.open(image_path).convert("RGB")
     tensor = transform(img).unsqueeze(0).to(device)
-    
-    # Select expert model based on modality
+
     model = load_cxr_model() if mode == "CXR" else load_ecg_model()
     with torch.no_grad():
         outputs = model(tensor)
         probs = torch.softmax(outputs, dim=1)[0]
-    
+
+    labels_list = CXR_LABELS if mode == "CXR" else ["CLBBB","CRBBB","NORM","PACE","PVC"]
+
+    all_probs = {labels_list[i]: float(probs[i]) * 100 for i in range(len(labels_list))}
     idx = probs.argmax().item()
-    label = CXR_LABELS[idx] if mode == "CXR" else ["CLBBB","CRBBB","NORM","PACE","PVC"][idx]
-    return label, round(probs[idx].item()*100, 2)
+    label = labels_list[idx]
+    confidence = round(float(probs[idx]) * 100, 2)
+
+    return label, confidence, all_probs
+
+def generate_clinical_report(tokenizer, model, diagnosis, confidence, mode):
+    prompt = f"Act as a professional cardiologist/radiologist. Based on the {mode} analysis, the AI detected '{diagnosis}' with a confidence of {confidence}%. Write a concise, 1-2 sentence clinical impression report."
+
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+    with torch.no_grad():
+        outputs = model.generate(**inputs, max_new_tokens=100, temperature=0.3)
+
+    report = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return report.replace(prompt, "").strip()
 
 # --- User Interface (UI) Layout ---
-
 with st.sidebar:
+    # تم إزالة الصورة من هنا بناءً على طلبك
     st.title("⚙️ Control Panel")
-    hf_token = st.text_input("HuggingFace Token", type="password", help="Required to access MedGemma LLM weights")
-    st.divider()
+
     scan_type = st.radio("Select Diagnostic Modality", ["CXR - Chest X-Ray", "ECG - Electrocardiogram"])
-    st.info("Ensure .pth files are located in the /models directory for local inference.")
+
+    st.divider()
+    st.markdown("### 👨‍💻 Team Members")
+    st.markdown("""
+    * **Yazan Alhusseini**
+    * Raad Aladli
+    * Osama Alharbi
+    * Thamer Alzahrani
+    * Khaled Alsolami
+    """)
 
 st.title("🩺 RhythmRay AI: System of Experts")
-st.caption("Advanced Multi-Modal Diagnostic Platform for Radiology & Cardiology")
 
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns([1, 1.2])
 
 with col1:
-    st.subheader("📤 Data Ingestion")
-    uploaded_file = st.file_uploader("Upload Medical Scan (CXR or ECG)", type=["jpg", "png", "jpeg"])
+    uploaded_file = st.file_uploader("Upload X-Ray or ECG Image", type=["jpg", "png", "jpeg"])
     if uploaded_file:
-        st.image(uploaded_file, caption="Input Scan Preview", use_container_width=True)
+        st.image(uploaded_file, use_container_width=True)
 
 with col2:
-    st.subheader("🧠 Cognitive Analysis")
-    if uploaded_file and hf_token:
-        if st.button("Generate Diagnostic Report"):
-            with st.spinner("Analyzing via Vision Experts..."):
-                # Save uploaded file to a temporary location for processing
+    if uploaded_file:
+        if st.button("Analyze Image"):
+            if HF_TOKEN == "ضع_التوكن_الخاص_بك_هنا":
+                st.error("⚠️ لم تقم بوضع التوكن السري في كود app.py!")
+            else:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     tmp.write(uploaded_file.getvalue())
                     tmp_path = tmp.name
-                
+
                 mode = "CXR" if "CXR" in scan_type else "ECG"
-                diag, conf = predict(tmp_path, mode)
-                
-                # Display Results
-                st.markdown(f"""
-                <div class="result-card">
-                    <h4>Primary Diagnosis: {diag}</h4>
-                    <p>AI Confidence Score: <b>{conf}%</b></p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Clean up temporary file
+
+                with st.spinner("Analyzing image..."):
+                    diag, conf, all_probs = predict_vision(tmp_path, mode)
+
+                    st.markdown(f"""
+                    <div class="diag-box">
+                        <h2>Diagnosis: {diag}</h2>
+                        <p>Confidence: {conf}%</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    with st.expander("All Probabilities", expanded=True):
+                        sorted_probs = sorted(all_probs.items(), key=lambda x: x[1], reverse=True)
+                        for cls_name, prob_val in sorted_probs:
+                            st.write(f"{cls_name}: {prob_val:.1f}%")
+                            st.progress(prob_val / 100.0)
+
+                st.markdown("### Clinical Report")
+                with st.spinner("Generating report..."):
+                    tokenizer, llm_model = load_gemma_llm()
+                    clinical_report = generate_clinical_report(tokenizer, llm_model, diag, conf, mode)
+                    st.info(clinical_report)
+
+                    st.download_button(
+                        label="📄 Download Report",
+                        data=f"Diagnosis: {diag}\nConfidence: {conf}%\n\nReport:\n{clinical_report}",
+                        file_name="RhythmRay_Report.txt",
+                        mime="text/plain"
+                    )
+
                 os.unlink(tmp_path)
-    elif uploaded_file and not hf_token:
-        st.warning("HuggingFace Token is required in the sidebar to activate the Cognitive Layer.")
-except Exception as e:
-    print(f"Error: {e}")
