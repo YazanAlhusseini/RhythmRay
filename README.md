@@ -63,10 +63,14 @@ textRhythmRay/
 👨‍💻 Team (Jamoum University College — CS Department)
 
 
-Yazan Alhusseini — ECG Expert & System Integration
+(Team Leader)Yazan Alhusseini — ECG Expert & System Integration
+
 Raad Aladli — LLM Fine-tuning & Web Backend
+
 Osama Alharbi — ECG Preprocessing & Frontend Design
+
 Thamer Alzahrani — CXR Expert & Documentation
+
 Khaled Alsolami — CXR Preprocessing & Testing
 
 
