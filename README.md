@@ -1,18 +1,28 @@
-# RhythmRay AI: Advanced Medical Diagnostic Platform
+RhythmRay AI: Advanced Medical Diagnostic Platform
 
-RhythmRay AI is a multi-modal medical diagnostic system that leverages a **Modular "System of Experts" Architecture**. It combines task-specific Computer Vision models with a fine-tuned Large Language Model (MedGemma) to analyze medical imagery (Chest X-Rays and ECGs) and synthesize professional clinical reports.
+RhythmRay AI is a multi-modal medical diagnostic system built around a "System of Experts" architecture: dedicated computer vision models analyze Chest X-Rays and 12-lead ECGs, and a quantized Gemma-2B language model turns their findings into a short, readable clinical impression.
 
-## 🚀 Key Features
-- **Multi-Modal Analysis:** Supports both 12-lead ECG signals and Frontal Chest X-Rays.
-- **System of Experts:** Uses specialized CNNs (ResNet50 & EfficientNet-B0) for high-precision visual extraction.
-- **Generative Reporting:** Integrated MedGemma-2B (Fine-tuned via LoRA) for human-readable clinical impressions.
-- **Clinical Ergonomics:** Dark-mode Streamlit dashboard designed for radiology reading rooms.
-- **Quantized Execution:** Optimized for 4-bit (NF4) quantization to run efficiently on consumer-grade and cloud GPUs.
+🚀 Key Features
 
-## 🛠️ Architecture & Modalities
-The system classifies 13 pulmonary diseases and 5 core cardiac arrhythmias:
-- **Radiology (CXR):** Atelectasis, Cardiomegaly, Effusion, Infiltration, Mass, Nodule, Pneumothorax, etc.
-- **Cardiology (ECG):** Normal Sinus Rhythm (NORM), CLBBB, CRBBB, PACE, and PVC.
+
+Multi-Modal Analysis — Diagnoses both frontal Chest X-Rays and 12-lead ECG signals.
+System of Experts — A DenseNet121 (modified for single-channel input) handles CXR classification, and a Keras ResNet1D model handles ECG classification.
+Flexible ECG Input — Upload a raw .npy/.csv 12-lead signal for the highest accuracy, or upload a photo/scan of a printed ECG strip, which gets digitized through an OpenCV-based grid-removal and lead-extraction pipeline (flagged as approximate in the UI).
+Generative Reporting — Findings are passed to google/gemma-2b-it, prompted to draft a 3–4 sentence clinical note. The model runs as-is — no LoRA fine-tuning is currently wired into the pipeline.
+Clinical Ergonomics — Dark-mode Streamlit dashboard with bilingual (Arabic/English) prompts on the ECG upload flow.
+Quantized Execution — Gemma-2B-it loads in 4-bit NF4 via BitsAndBytes, so it fits on a single consumer or free-tier Colab GPU.
+
+
+🛠️ Architecture & Modalities
+
+Radiology (CXR) — DenseNet121
+Grayscale 224×224 input, multi-label sigmoid output over 14 conditions: Atelectasis, Cardiomegaly, Consolidation, Edema, Effusion, Emphysema, Fibrosis, Hernia, Infiltration, Mass, Nodule, Pleural Thickening, Pneumonia, Pneumothorax. Falls back to "No Finding" if nothing crosses the 0.5 threshold.
+
+Cardiology (ECG) — ResNet1D (Keras/TensorFlow)
+12-lead input (5000 samples/lead, per-lead z-score normalized), multi-label sigmoid output over the 5 PTB-XL superclasses: NORM, MI, STTC, CD, HYP. Uses per-class thresholds from thresholds_ptbxl.json when present, otherwise defaults to 0.5 for every class.
+
+Report Generation — Gemma-2B-it
+Diagnosis, confidence, and a short clinical-notes dictionary get folded into an instruction prompt, and the quantized LLM generates the final narrative report.
 
 
  **Download Model Weights:**
@@ -23,62 +33,51 @@ The system classifies 13 pulmonary diseases and 5 core cardiac arrhythmias:
    * Create a folder named `models` in the root directory and place these files inside it.
 
 
-## 📁 Repository Structure
-```text
-RhythmRay-AI/
-├── app.py              # Main Streamlit Application Core
-├── requirements.txt    # Required Python Libraries
+Unzip ckpt_best.pt.zip to get ckpt_best.pt. There's no bundled thresholds_ptbxl.json in the release — it's optional. Without it, the ECG model just falls back to a flat 0.5 threshold for all 5 classes instead of calibrated per-class thresholds.
+
+⚙️ Running RhythmRay (Google Colab + ngrok)
+
+app.py is currently a Colab notebook export, not a standalone local script — it installs its own dependencies with !pip install cells and expects Colab-style /content/... paths, so streamlit run app.py won't work on its own outside Colab. The flow today is:
+
+
+Open app.py in Google Colab (paste its cells into a notebook, or open the file directly).
+
+Get an ngrok authtoken and a Hugging Face token (needed to pull google/gemma-2b-it), and paste them into the NGROK_TOKEN and HF_TOKEN variables near the top of the script.
+
+Upload ckpt_best.pt and best_resnet1d.keras (and thresholds_ptbxl.json, if you have it) into the Colab session's /content/ folder.
+
+Run all cells. The notebook installs dependencies, downloads and quantizes Gemma-2B-it, loads both vision models, then launches Streamlit in the background and opens an ngrok tunnel.
+
+Grab the public URL printed at the end of the run — that's the live dashboard.
+
+
+requirements.txt is kept for local reference, but it's currently missing a few packages the notebook actually imports (opencv-python, tensorflow, scipy, pandas) — worth syncing if a real local setup path gets added later.
+
+📁 Repository Structure
+
+textRhythmRay/
+├── app.py              # Colab-exported notebook: installs deps, loads models, launches the Streamlit app via ngrok
+├── requirements.txt    # Reference list of Python dependencies
 ├── README.md           # Documentation
-└── models/             # Local directory for model weights (.pth files)
+└── models.             # Placeholder file — model weights are downloaded from Releases, not stored here
 
-## 🎓 Acknowledgments
-
-Special thanks to **Umm Al-Qura University** and the **College of Computer and Information Systems** for their support and resources.
-
----
-*© 2026 RhythmRay AI Project. All Rights Reserved.*
-```
-⚙️ Installation & Setup
-Clone the repository:
-
-git clone [https://github.com/YazanAlhusseini/RhythmRay.git](https://github.com/YazanAlhusseini/RhythmRay.git)
-cd RhythmRay
-Install dependencies:
+👨‍💻 Team (Jamoum University College — CS Department)
 
 
-pip install -r requirements.txt
-
-Configuration:
-
-Open app.py and ensure the MODEL_DIR path points to your models/ folder.
-
-Provide your HuggingFace Token in the sidebar when prompted to enable the MedGemma LLM.
-
-Run the Application:
+Yazan Alhusseini — ECG Expert & System Integration
+Raad Aladli — LLM Fine-tuning & Web Backend
+Osama Alharbi — ECG Preprocessing & Frontend Design
+Thamer Alzahrani — CXR Expert & Documentation
+Khaled Alsolami — CXR Preprocessing & Testing
 
 
-streamlit run app.py
+🎓 Acknowledgments
 
-
-🧠 Model Optimization Details
-Vision: ResNet50 (Transfer Learning) & EfficientNet-B0.
-
-LLM: MedGemma-2B (Google Gemma-2B-it base).
-
-Fine-tuning: LoRA (Low-Rank Adaptation).
-
-Quantization: BitsAndBytes 4-bit NormalFloat (NF4).
-
-👨‍💻 Team (Jamoum University College - CS Department)
-Yazan Alhusseini - ECG Expert & System Integration
-
-Raad Aladli - LLM Fine-tuning & Web Backend
-
-Osama Alharbi - ECG Preprocessing & Frontend Design
-
-Thamer Alzahrani - CXR Expert & Documentation
-
-Khaled Alsolami - CXR Preprocessing & Testing
+Special thanks to Umm Al-Qura University and the College of Computer and Information Systems for their support and resources.
 
 📜 Disclaimer
-RhythmRay AI is a research prototype designed for clinical triage support. It is not intended to replace final clinical judgment by a certified healthcare professional.
+
+RhythmRay AI is a research prototype intended for clinical triage support. It is not intended to replace final clinical judgment by a certified healthcare professional.
+
+
+© 2026 RhythmRay AI Project. All Rights Reserved.
