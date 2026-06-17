@@ -16,8 +16,8 @@ The system classifies 13 pulmonary diseases and 5 core cardiac arrhythmias:
 
 
  **Download Model Weights:**
-   * [Download CXR Model (270MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/CXR_ResNet50_v2.pth)
-   * [Download ECG Model (16MB)](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/ECG_EffNetB0_V4.pth)
+   * [Download CXR Model ](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/CXR_ResNet50_v2.pth)
+   * [Download ECG Model ](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/ECG_EffNetB0_V4.pth)
    * Create a folder named `models` in the root directory and place these files inside it.
 
 
