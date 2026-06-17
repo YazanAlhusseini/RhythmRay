@@ -4,7 +4,6 @@ RhythmRay AI is a multi-modal medical diagnostic system built around a "System o
 
 🚀 Key Features
 
-
 Multi-Modal Analysis — Diagnoses both frontal Chest X-Rays and 12-lead ECG signals.
 System of Experts — A DenseNet121 (modified for single-channel input) handles CXR classification, and a Keras ResNet1D model handles ECG classification.
 Flexible ECG Input — Upload a raw .npy/.csv 12-lead signal for the highest accuracy, or upload a photo/scan of a printed ECG strip, which gets digitized through an OpenCV-based grid-removal and lead-extraction pipeline (flagged as approximate in the UI).
@@ -30,7 +29,7 @@ Diagnosis, confidence, and a short clinical-notes dictionary get folded into an 
 )
    * [Download ECG Model ](https://github.com/YazanAlhusseini/RhythmRay/releases/download/v1.0/best_resnet1d.keras
 )
-   * Create a folder named `models` in the root directory and place these files inside it.
+   
 
 
 Unzip ckpt_best.pt.zip to get ckpt_best.pt. There's no bundled thresholds_ptbxl.json in the release — it's optional. Without it, the ECG model just falls back to a flat 0.5 threshold for all 5 classes instead of calibrated per-class thresholds.
